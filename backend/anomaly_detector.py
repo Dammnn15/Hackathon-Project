@@ -77,26 +77,67 @@ class SnortRuleMatcher:
         self.rules = self._load_default_rules()
     
     def _load_default_rules(self) -> List[Dict]:
-        """Load Snort-like detection rules"""
+        """Load Snort-like detection rules (ENHANCED with 20+ rules)"""
         return [
+            # SQL Injection Rules (Enhanced)
             {'sid': 1001, 'name': 'SQL Injection - UNION SELECT', 
              'pattern': r'union\s+select', 'severity': 'high', 'attack_type': 'SQL Injection'},
             {'sid': 1002, 'name': 'SQL Injection - OR 1=1', 
              'pattern': r'(or|and)\s+[\'"]?\d+[\'"]?\s*=\s*[\'"]?\d+[\'"]?', 'severity': 'high', 'attack_type': 'SQL Injection'},
             {'sid': 1003, 'name': 'SQL Injection - Comment', 
              'pattern': r'(--|\/\*|\*\/|#)', 'severity': 'medium', 'attack_type': 'SQL Injection'},
+            {'sid': 1004, 'name': 'SQL Injection - DROP/DELETE TABLE',
+             'pattern': r'\b(drop|delete)\s+(table|from)', 'severity': 'critical', 'attack_type': 'SQL Injection'},
+            {'sid': 1005, 'name': 'SQL Injection - INSERT/UPDATE',
+             'pattern': r'\b(insert\s+into|update\s+\w+\s+set)', 'severity': 'high', 'attack_type': 'SQL Injection'},
+            {'sid': 1006, 'name': 'SQL Injection - EXEC/EXECUTE',
+             'pattern': r'\b(exec|execute)\s*\(', 'severity': 'critical', 'attack_type': 'SQL Injection'},
+            {'sid': 1007, 'name': 'SQL Injection - String Concatenation',
+             'pattern': r'(\|\||concat\s*\()', 'severity': 'medium', 'attack_type': 'SQL Injection'},
+            
+            # XSS Rules (Enhanced)
             {'sid': 2001, 'name': 'XSS - Script Tag', 
              'pattern': r'<\s*script[\s\S]*?>', 'severity': 'high', 'attack_type': 'XSS'},
             {'sid': 2002, 'name': 'XSS - Event Handler', 
-             'pattern': r'on(load|error|click|mouse|focus)\s*=', 'severity': 'high', 'attack_type': 'XSS'},
+             'pattern': r'on(load|error|click|mouse|focus|blur)\s*=', 'severity': 'high', 'attack_type': 'XSS'},
             {'sid': 2003, 'name': 'XSS - JavaScript Protocol', 
              'pattern': r'javascript\s*:', 'severity': 'high', 'attack_type': 'XSS'},
             {'sid': 2004, 'name': 'XSS - Dangerous Function', 
              'pattern': r'(alert|eval|prompt|confirm)\s*\(', 'severity': 'medium', 'attack_type': 'XSS'},
-            {'sid': 3001, 'name': 'Path Traversal', 
+            {'sid': 2005, 'name': 'XSS - Iframe/Embed',
+             'pattern': r'<\s*(iframe|embed|object)\s', 'severity': 'high', 'attack_type': 'XSS'},
+            {'sid': 2006, 'name': 'XSS - SVG with Event',
+             'pattern': r'<\s*svg.*?on\w+\s*=', 'severity': 'high', 'attack_type': 'XSS'},
+            {'sid': 2007, 'name': 'XSS - IMG with onerror',
+             'pattern': r'<\s*img.*?onerror\s*=', 'severity': 'high', 'attack_type': 'XSS'},
+            {'sid': 2008, 'name': 'XSS - Data URI',
+             'pattern': r'data\s*:.*?(text/html|javascript)', 'severity': 'medium', 'attack_type': 'XSS'},
+            
+            # Path Traversal (Enhanced)
+            {'sid': 3001, 'name': 'Path Traversal - Directory Traversal', 
              'pattern': r'\.\.[/\\]', 'severity': 'high', 'attack_type': 'Path Traversal'},
-            {'sid': 3002, 'name': 'Command Injection', 
-             'pattern': r'[;&|`$].*\b(cat|ls|whoami|nc|wget|curl)\b', 'severity': 'critical', 'attack_type': 'Command Injection'}
+            {'sid': 3002, 'name': 'Path Traversal - Windows System Files',
+             'pattern': r'(windows|winnt)[/\\](system32|system)', 'severity': 'critical', 'attack_type': 'Path Traversal'},
+            {'sid': 3003, 'name': 'Path Traversal - Unix System Files',
+             'pattern': r'/etc/(passwd|shadow|hosts)', 'severity': 'critical', 'attack_type': 'Path Traversal'},
+            
+            # Command Injection (Enhanced)
+            {'sid': 4001, 'name': 'Command Injection - Shell Commands', 
+             'pattern': r'[;&|`$].*\b(cat|ls|whoami|nc|wget|curl)\b', 'severity': 'critical', 'attack_type': 'Command Injection'},
+            {'sid': 4002, 'name': 'Command Injection - Pipe Operator',
+             'pattern': r'\|\s*(bash|sh|cmd|powershell)', 'severity': 'critical', 'attack_type': 'Command Injection'},
+            
+            # LDAP Injection
+            {'sid': 5001, 'name': 'LDAP Injection',
+             'pattern': r'(\*\)|\(.*\|\()', 'severity': 'medium', 'attack_type': 'LDAP Injection'},
+            
+            # XML Injection
+            {'sid': 6001, 'name': 'XXE - XML External Entity',
+             'pattern': r'<!ENTITY.*?SYSTEM', 'severity': 'high', 'attack_type': 'XXE'},
+            
+            # NoSQL Injection
+            {'sid': 7001, 'name': 'NoSQL Injection - MongoDB',
+             'pattern': r'\$\w+\s*:\s*{', 'severity': 'high', 'attack_type': 'NoSQL Injection'}
         ]
     
     def match(self, payload: str) -> Tuple[bool, List[Dict]]:
