@@ -6,6 +6,7 @@ from anomaly_detector import get_anomaly_system
 from database import get_database
 from ai_agent import get_ai_agent, get_payload_stream
 from traffic_monitor import monitor_traffic_middleware, get_traffic_monitor, create_traffic_dashboard_data
+from rule_generator import get_rule_generator, get_rule_matching_engine
 
 app = Flask(__name__)
 
@@ -15,6 +16,8 @@ security_db = get_database()
 ai_agent = get_ai_agent()
 payload_stream = get_payload_stream()
 traffic_monitor = get_traffic_monitor()
+rule_generator = get_rule_generator()
+rule_matcher = get_rule_matching_engine()
 
 # Traffic monitoring
 middleware = monitor_traffic_middleware(anomaly_system, ai_agent, payload_stream, security_db)
@@ -132,6 +135,18 @@ def login_check():
         'attack_type': verdict['attack_type'],
         'ai_risk_score': ai_analysis['risk_score']
     })
+    
+    # AUTO-GENERATE RULES for DROP/UNKNOWN verdicts
+    if verdict['verdict'] in ['DROP', 'UNKNOWN']:
+        rule = rule_generator.analyze_payload_for_rule(
+            combined_payload,
+            verdict['attack_type'],
+            verdict['confidence']
+        )
+        rule_generator.add_generated_rule(rule)
+        print(f"\n🔧 AUTO-GENERATED RULE #{rule['rule_id']} from {verdict['verdict']} verdict")
+        print(f"   Patterns: {', '.join(rule['patterns'][:3])}...")
+        print(f"   Status: Pending review at /rule-review")
     
     # Detailed logging
     print(f"\n{'='*70}")
@@ -356,6 +371,119 @@ def recent_traffic():
     recent = traffic_monitor.get_recent_traffic(limit=limit)
     return jsonify({'traffic': recent, 'count': len(recent)})
 
+@app.route("/rule-review")
+def rule_review_page():
+    """Rule review and approval dashboard"""
+    return render_template("rule_review.html")
+
+@app.route("/api/rules/generate", methods=["POST"])
+def generate_rule_from_verdict():
+    """
+    Generate a new rule from a DROP/UNKNOWN verdict
+    Automatically called for verdicts requiring review
+    """
+    data = request.get_json() or {}
+    verdict_id = data.get('verdict_id')
+    payload = data.get('payload')
+    attack_type = data.get('attack_type')
+    confidence = data.get('confidence')
+    
+    if not all([payload, attack_type, confidence]):
+        return jsonify({"error": "Missing required fields"}), 400
+    
+    # Generate rule from this attack
+    rule = rule_generator.analyze_payload_for_rule(payload, attack_type, confidence)
+    rule_generator.add_generated_rule(rule)
+    
+    print(f"\n{'='*70}")
+    print(f"📝 NEW RULE GENERATED FROM ATTACK")
+    print(f"{'='*70}")
+    print(f"Rule ID: {rule['rule_id']}")
+    print(f"Attack Type: {attack_type}")
+    print(f"Patterns Found: {len(rule['patterns'])}")
+    print(f"Severity: {rule['severity']}")
+    print(f"Patterns: {', '.join(rule['patterns'])}")
+    print(f"Status: Pending Admin Review")
+    print(f"{'='*70}\n")
+    
+    return jsonify({
+        "success": True,
+        "rule_id": rule['rule_id'],
+        "rule": rule,
+        "message": "Rule generated and pending review"
+    })
+
+@app.route("/api/rules/pending")
+def get_pending_rules():
+    """Get all pending rules for review"""
+    pending = rule_generator.get_pending_rules()
+    return jsonify({
+        "rules": pending,
+        "count": len(pending)
+    })
+
+@app.route("/api/rules/approve/<int:rule_id>", methods=["POST"])
+def approve_rule(rule_id):
+    """Approve a rule - makes it active"""
+    success = rule_generator.approve_rule(rule_id)
+    
+    if success:
+        print(f"\n✅ RULE {rule_id} APPROVED - Now Active!")
+        return jsonify({
+            "success": True,
+            "message": f"Rule {rule_id} approved and activated"
+        })
+    else:
+        return jsonify({
+            "success": False,
+            "error": "Rule not found"
+        }), 404
+
+@app.route("/api/rules/reject/<int:rule_id>", methods=["POST"])
+def reject_rule(rule_id):
+    """Reject a rule"""
+    data = request.get_json() or {}
+    reason = data.get('reason', 'No reason provided')
+    
+    success = rule_generator.reject_rule(rule_id, reason)
+    
+    if success:
+        print(f"\n❌ RULE {rule_id} REJECTED: {reason}")
+        return jsonify({
+            "success": True,
+            "message": f"Rule {rule_id} rejected"
+        })
+    else:
+        return jsonify({
+            "success": False,
+            "error": "Rule not found"
+        }), 404
+
+@app.route("/api/rules/approved")
+def get_approved_rules():
+    """Get all approved (active) rules"""
+    approved = rule_generator.get_approved_rules()
+    return jsonify({
+        "rules": approved,
+        "count": len(approved)
+    })
+
+@app.route("/api/rules/stats")
+def get_rule_stats():
+    """Get rule generation statistics"""
+    stats = rule_generator.get_statistics()
+    return jsonify(stats)
+
+@app.route("/api/rules/export")
+def export_rules():
+    """Export approved rules in Snort format"""
+    snort_rules = rule_generator.export_rules_to_snort_format()
+    return Response(
+        snort_rules,
+        mimetype='text/plain',
+        headers={'Content-Disposition': 'attachment;filename=generated_rules.rules'}
+    )
+
 if __name__ == "__main__":
     print("\n" + "="*70)
     print("🤖 STARTING AI ANOMALY DETECTION SYSTEM")
@@ -367,6 +495,8 @@ if __name__ == "__main__":
     print("   🤖 AI Agent - ACTIVE")
     print("   📡 Real-time Payload Stream - ENABLED")
     print("   🔐 Login Attack Detection - ACTIVE")
+    print("   🔧 Auto Rule Generation - ENABLED ⭐ NEW!")
+    print("   🎯 Adaptive Learning System - ACTIVE")
     print("\n" + "="*70)
     print("🌐 WEB INTERFACES:")
     print("="*70)
@@ -374,9 +504,13 @@ if __name__ == "__main__":
     print("      → http://127.0.0.1:5000/login")
     print("      (Test SQL injection & XSS attacks!)")
     print("")
-    print("   📡 Live Monitor (Watch Results): ⭐ NEW!")
-    print("      → http://127.0.0.1:5000/live-monitor")
-    print("      (Real-time PASS/UNKNOWN/DROP display with percentages!)")
+    print("   📡 Live Monitor (Watch Results):")
+    print("      → http://127.0.0.1:5000/simple-monitor")
+    print("      (Real-time traffic & attack monitoring!)")
+    print("")
+    print("   🔧 Rule Review Dashboard: ⭐ NEW!")
+    print("      → http://127.0.0.1:5000/rule-review")
+    print("      (Review & approve auto-generated rules!)")
     print("")
     print("   🔬 Security Lab:")
     print("      → http://127.0.0.1:5000/security-lab")
@@ -389,12 +523,25 @@ if __name__ == "__main__":
     print("   POST /api/test-xss - XSS testing")
     print("   POST /api/anomaly-predict - AI threat analysis")
     print("   GET  /api/realtime/payloads - Real-time payload stream")
+    print("   POST /api/rules/generate - Generate rule from attack ⭐")
+    print("   GET  /api/rules/pending - Get pending rules")
+    print("   POST /api/rules/approve/<id> - Approve rule")
+    print("   POST /api/rules/reject/<id> - Reject rule")
     print("\n" + "="*70)
     print("💡 QUICK START:")
     print("="*70)
     print("   1. Open: http://127.0.0.1:5000/login (test attacks)")
-    print("   2. Open: http://127.0.0.1:5000/live-monitor (watch results)")
-    print("   3. See real-time verdicts with accuracy percentages!")
+    print("   2. Open: http://127.0.0.1:5000/simple-monitor (watch results)")
+    print("   3. DROP/UNKNOWN attacks → Auto-generate rules")
+    print("   4. Open: http://127.0.0.1:5000/rule-review (approve rules)")
+    print("   5. System learns and improves accuracy! 🚀")
+    print("\n" + "="*70)
+    print("🎯 ADAPTIVE LEARNING:")
+    print("="*70)
+    print("   • DROP/UNKNOWN verdicts → Auto-generate rules")
+    print("   • Review rules at /rule-review")
+    print("   • Approve rules → Boost detection accuracy")
+    print("   • System improves with each attack!")
     print("\n" + "="*70)
     print("🚀 Server running on http://127.0.0.1:5000")
     print("="*70 + "\n")

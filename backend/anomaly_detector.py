@@ -235,9 +235,32 @@ class AnomalyDetectionSystem:
         # Step 2: Snort Rule Matching (Pattern Detection)
         has_rule_match, matched_rules = self.rule_matcher.match(payload)
         
+        # Step 2.5: Generated Rule Matching (Learning from past attacks)
+        # Check against approved rules generated from previous DROP/UNKNOWN verdicts
+        try:
+            from rule_generator import get_rule_matching_engine
+            rule_engine = get_rule_matching_engine()
+            has_generated_match, generated_rules, confidence_boost = rule_engine.match_against_generated_rules(payload)
+            
+            if has_generated_match:
+                # Add generated rules to matched rules
+                matched_rules.extend(generated_rules)
+                has_rule_match = True
+        except ImportError:
+            confidence_boost = 0
+            has_generated_match = False
+            generated_rules = []
+        
         # Step 3 & 4: ALWAYS run ML Model Evaluation (don't skip based on Snort match)
         # The ML model is the primary detection mechanism, Snort rules are supplementary
         confidence, predicted_category = self.ml_predictor.predict_confidence(features)
+        
+        # Apply confidence boost from generated rules
+        if has_generated_match:
+            original_confidence = confidence
+            confidence = min(confidence + confidence_boost, 100)
+            if confidence_boost > 0:
+                print(f"   🎯 Generated rules matched! Confidence boosted: {original_confidence:.1f}% → {confidence:.1f}%")
         
         # Step 5: Anomaly Detection (Isolation Forest)
         is_anomaly = self.ml_predictor.is_anomaly(features)
