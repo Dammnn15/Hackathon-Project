@@ -138,21 +138,17 @@ def authenticate_user():
 
 @app.route("/dashboard")
 def dashboard():
-    """Protected dashboard - only for logged in users"""
+    """Public dashboard - accessible to everyone"""
+    # Optional: Check if user is logged in
     session_token = session.get('session_token')
+    user_info = None
     
-    if not session_token:
-        return redirect(url_for("login_page"))
+    if session_token:
+        user_data = auth_system.verify_session(session_token)
+        if user_data:
+            user_info = auth_system.get_user_info(user_data['user_id'])
     
-    user_data = auth_system.verify_session(session_token)
-    
-    if not user_data:
-        session.clear()
-        return redirect(url_for("login_page"))
-    
-    # Get user info
-    user_info = auth_system.get_user_info(user_data['user_id'])
-    
+    # Show dashboard regardless of login status
     return render_template("dashboard.html", user=user_info)
 
 @app.route("/logout")
