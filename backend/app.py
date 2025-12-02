@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
+from flask import Flask, render_template, request, redirect, url_for, jsonify, Response, session, make_response
 from firebase_auth import verify_firebase_token, admin_required
 import json
 import time
@@ -8,8 +8,11 @@ from ai_agent import get_ai_agent, get_payload_stream
 from traffic_monitor import monitor_traffic_middleware, get_traffic_monitor, create_traffic_dashboard_data
 from rule_generator import get_rule_generator, get_rule_matching_engine
 from accuracy_enhancer import get_ensemble_scorer
+from firebase_auth_system import get_firebase_auth_system  # Using Firebase for data storage
+import secrets
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)  # Secure secret key for sessions
 
 # Initialize systems
 anomaly_system = get_anomaly_system()
@@ -19,7 +22,8 @@ payload_stream = get_payload_stream()
 traffic_monitor = get_traffic_monitor()
 rule_generator = get_rule_generator()
 rule_matcher = get_rule_matching_engine()
-ensemble_scorer = get_ensemble_scorer()  # NEW: Advanced accuracy system
+ensemble_scorer = get_ensemble_scorer()  # Advanced accuracy system
+auth_system = get_firebase_auth_system()  # User authentication system (Firebase)
 
 # Traffic monitoring
 middleware = monitor_traffic_middleware(anomaly_system, ai_agent, payload_stream, security_db)
@@ -29,11 +33,51 @@ print("\n🌐 AUTOMATIC TRAFFIC MONITORING ENABLED")
 
 @app.route("/")
 def home():
-    return redirect(url_for("login"))
+    # Check if user is logged in
+    session_token = session.get('session_token')
+    if session_token and auth_system.verify_session(session_token):
+        return redirect(url_for("dashboard"))
+    return redirect(url_for("login_page"))
+
+@app.route("/register")
+def register_page():
+    """User registration page"""
+    response = make_response(render_template("register.html"))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
+@app.route("/api/register", methods=["POST"])
+def register():
+    """Handle user registration"""
+    data = request.get_json() or {}
+    username = data.get('username', '').strip()
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    
+    # Check for attacks in input (security layer)
+    source_ip = request.remote_addr
+    combined_input = f"{username} {email}"
+    
+    verdict = anomaly_system.analyze_payload(combined_input, source_ip, "Registration")
+    
+    if verdict['verdict'] == 'DROP':
+        print(f"🚨 BLOCKED registration attempt with malicious payload from {source_ip}")
+        return jsonify({
+            "success": False,
+            "message": "Invalid input detected. Please use valid characters."
+        }), 400
+    
+    # Register user
+    success, message = auth_system.register_user(username, email, password)
+    
+    if success:
+        return jsonify({"success": True, "message": message})
+    else:
+        return jsonify({"success": False, "message": message}), 400
 
 @app.route("/login")
-def login():
-    from flask import make_response
+def login_page():
+    """Login page"""
     response = make_response(render_template("login.html"))
     # Force browser to never cache - always get fresh version
     response.headers['Content-Type'] = 'text/html; charset=utf-8'
@@ -41,6 +85,86 @@ def login():
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
+
+@app.route("/login-testing")
+def login_testing():
+    """Old login page for attack testing (without authentication)"""
+    response = make_response(render_template("login_testing.html"))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
+@app.route("/api/auth/login", methods=["POST"])
+def authenticate_user():
+    """Handle actual user login"""
+    data = request.get_json() or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    source_ip = request.remote_addr
+    user_agent = request.headers.get('User-Agent', 'unknown')
+    
+    # First, check for attack patterns
+    combined_input = f"{username} {password}"
+    verdict = anomaly_system.analyze_payload(combined_input, source_ip, "Login")
+    
+    if verdict['verdict'] == 'DROP':
+        print(f"🚨 BLOCKED malicious login attempt from {source_ip}")
+        return jsonify({
+            "success": False,
+            "message": "Invalid login attempt detected.",
+            "attack_detected": True
+        }), 403
+    
+    # Attempt login
+    success, session_token, message = auth_system.login(username, password, source_ip, user_agent)
+    
+    if success:
+        # Store session token
+        session['session_token'] = session_token
+        session['username'] = username
+        
+        print(f"✅ Successful login: {username} from {source_ip}")
+        
+        return jsonify({
+            "success": True,
+            "message": message,
+            "redirect": "/dashboard"
+        })
+    else:
+        print(f"❌ Failed login attempt: {username} from {source_ip} - {message}")
+        return jsonify({
+            "success": False,
+            "message": message
+        }), 401
+
+@app.route("/dashboard")
+def dashboard():
+    """Protected dashboard - only for logged in users"""
+    session_token = session.get('session_token')
+    
+    if not session_token:
+        return redirect(url_for("login_page"))
+    
+    user_data = auth_system.verify_session(session_token)
+    
+    if not user_data:
+        session.clear()
+        return redirect(url_for("login_page"))
+    
+    # Get user info
+    user_info = auth_system.get_user_info(user_data['user_id'])
+    
+    return render_template("dashboard.html", user=user_info)
+
+@app.route("/logout")
+def logout():
+    """Logout user"""
+    session_token = session.get('session_token')
+    
+    if session_token:
+        auth_system.logout(session_token)
+    
+    session.clear()
+    return redirect(url_for("login_page"))
 
 @app.route("/security-lab")
 def security_lab():
@@ -375,7 +499,7 @@ def anomaly_predict():
     verdict['ai_analysis'] = ai_analysis
     
     # Add to real-time stream
-        payload_stream.add_payload({
+    payload_stream.add_payload({
             'verdict_id': verdict_id,
         'payload': payload[:200],
             'source_ip': source_ip,
@@ -418,7 +542,7 @@ def admin_warnings():
 def realtime_payloads():
     """Get recent payloads"""
     limit = request.args.get('limit', 50, type=int)
-        payloads = payload_stream.get_recent(limit=limit)
+    payloads = payload_stream.get_recent(limit=limit)
     return jsonify({'payloads': payloads, 'count': len(payloads)})
 
 @app.route("/api/traffic/stats")
@@ -557,7 +681,8 @@ if __name__ == "__main__":
     print("   🛡️  Snort Rules (23 patterns) - LOADED ⭐ +156%")
     print("   🤖 AI Agent - ACTIVE")
     print("   📡 Real-time Payload Stream - ENABLED")
-    print("   🔐 Login Attack Detection - ACTIVE")
+    print("   🔐 User Authentication System - ACTIVE ⭐ NEW!")
+    print("   👤 Session Management - ENABLED")
     print("   🔧 Auto Rule Generation - ENABLED")
     print("   🎯 Adaptive Learning System - ACTIVE")
     print("   ⭐ Ensemble Scoring - ENABLED (N-gram, Behavioral, Similarity, Context)")
@@ -565,21 +690,33 @@ if __name__ == "__main__":
     print("\n" + "="*70)
     print("🌐 WEB INTERFACES:")
     print("="*70)
-    print("   🔐 Login Page (Test Here):")
+    print("   👤 Register New User: ⭐ START HERE!")
+    print("      → http://127.0.0.1:5000/register")
+    print("      (Create your account to access the system)")
+    print("")
+    print("   🔐 Login Page:")
     print("      → http://127.0.0.1:5000/login")
-    print("      (Test SQL injection & XSS attacks!)")
+    print("      (Authenticate with your credentials)")
     print("")
-    print("   📡 Live Monitor (Watch Results):")
+    print("   🎯 Dashboard (After Login): ⭐ PROTECTED!")
+    print("      → http://127.0.0.1:5000/dashboard")
+    print("      (Access all features after authentication)")
+    print("")
+    print("   📡 Live Monitor:")
     print("      → http://127.0.0.1:5000/simple-monitor")
-    print("      (Real-time traffic & attack monitoring!)")
+    print("      (Real-time traffic & attack monitoring)")
     print("")
-    print("   🔧 Rule Review Dashboard: ⭐ NEW!")
+    print("   🔧 Rule Review:")
     print("      → http://127.0.0.1:5000/rule-review")
-    print("      (Review & approve auto-generated rules!)")
+    print("      (Review & approve auto-generated rules)")
     print("")
     print("   🔬 Security Lab:")
     print("      → http://127.0.0.1:5000/security-lab")
     print("      (Advanced payload testing)")
+    print("")
+    print("   🧪 Testing Login (Old):")
+    print("      → http://127.0.0.1:5000/login-testing")
+    print("      (SQL/XSS testing without authentication)")
     print("\n" + "="*70)
     print("🔌 API ENDPOINTS:")
     print("="*70)
@@ -595,11 +732,11 @@ if __name__ == "__main__":
     print("\n" + "="*70)
     print("💡 QUICK START:")
     print("="*70)
-    print("   1. Open: http://127.0.0.1:5000/login (test attacks)")
-    print("   2. Open: http://127.0.0.1:5000/simple-monitor (watch results)")
-    print("   3. DROP/UNKNOWN attacks → Auto-generate rules")
-    print("   4. Open: http://127.0.0.1:5000/rule-review (approve rules)")
-    print("   5. System learns and improves accuracy! 🚀")
+    print("   1. Register: http://127.0.0.1:5000/register (create account)")
+    print("   2. Login: http://127.0.0.1:5000/login (authenticate)")
+    print("   3. Dashboard: http://127.0.0.1:5000/dashboard (after login)")
+    print("   4. Access all features after authentication!")
+    print("   5. Test attacks: http://127.0.0.1:5000/login-testing")
     print("\n" + "="*70)
     print("🎯 ADAPTIVE LEARNING:")
     print("="*70)
