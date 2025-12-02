@@ -1,0 +1,7 @@
+Flask
+firebase-admin
+scikit-learn
+numpy
+colorama
+requests
+python-dotenv

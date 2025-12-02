@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live AI Detection Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f0f1e;
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border-radius: 20px;
+            border: 2px solid rgba(102, 126, 234, 0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            font-weight: 800;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .live-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(39, 174, 96, 0.2);
+            padding: 8px 20px;
+            border-radius: 50px;
+            border: 2px solid #27ae60;
+            margin-top: 10px;
+        }
+        
+        .pulse {
+            width: 12px;
+            height: 12px;
+            background: #27ae60;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 10px rgba(39, 174, 96, 0);
+            }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 25px;
+            border-radius: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, currentColor, transparent);
+        }
+        
+        .stat-card.drop::before {
+            color: #e74c3c;
+        }
+        
+        .stat-card.unknown::before {
+            color: #f39c12;
+        }
+        
+        .stat-card.pass::before {
+            color: #27ae60;
+        }
+        
+        .stat-card.total::before {
+            color: #667eea;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            border-color: rgba(102, 126, 234, 0.5);
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .stat-value {
+            font-size: 3em;
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card.drop .stat-value {
+            color: #e74c3c;
+        }
+        
+        .stat-card.unknown .stat-value {
+            color: #f39c12;
+        }
+        
+        .stat-card.pass .stat-value {
+            color: #27ae60;
+        }
+        
+        .stat-card.total .stat-value {
+            color: #667eea;
+        }
+        
+        .stat-percentage {
+            font-size: 1.2em;
+            color: #ccc;
+            font-weight: 600;
+        }
+        
+        .accuracy-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .accuracy-fill {
+            height: 100%;
+            transition: width 0.5s ease-out;
+            border-radius: 4px;
+        }
+        
+        .accuracy-fill.drop {
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
+        }
+        
+        .accuracy-fill.unknown {
+            background: linear-gradient(90deg, #f39c12, #e67e22);
+        }
+        
+        .accuracy-fill.pass {
+            background: linear-gradient(90deg, #27ae60, #229954);
+        }
+        
+        .payload-stream {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 25px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .stream-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .stream-header h2 {
+            font-size: 1.5em;
+            font-weight: 700;
+        }
+        
+        .refresh-btn {
+            background: rgba(102, 126, 234, 0.2);
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .payload-item {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+            transition: all 0.3s;
+            animation: slideIn 0.4s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .payload-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateX(5px);
+        }
+        
+        .payload-item.drop {
+            border-left-color: #e74c3c;
+        }
+        
+        .payload-item.unknown {
+            border-left-color: #f39c12;
+        }
+        
+        .payload-item.pass {
+            border-left-color: #27ae60;
+        }
+        
+        .payload-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .verdict-badge {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .verdict-badge.drop {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            border: 2px solid #e74c3c;
+        }
+        
+        .verdict-badge.unknown {
+            background: rgba(243, 156, 18, 0.2);
+            color: #f39c12;
+            border: 2px solid #f39c12;
+        }
+        
+        .verdict-badge.pass {
+            background: rgba(39, 174, 96, 0.2);
+            color: #27ae60;
+            border: 2px solid #27ae60;
+        }
+        
+        .confidence-display {
+            font-size: 1.8em;
+            font-weight: 800;
+            color: #667eea;
+        }
+        
+        .payload-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .detail-item {
+            font-size: 0.9em;
+            color: #ccc;
+        }
+        
+        .detail-label {
+            color: #888;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .detail-value {
+            color: #fff;
+            font-weight: 600;
+            font-size: 1.05em;
+        }
+        
+        .payload-text {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            color: #ddd;
+            word-break: break-all;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+        }
+        
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        .nav-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .nav-btn {
+            background: rgba(102, 126, 234, 0.2);
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 12px 24px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+        
+        .nav-btn:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .filter-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 12px;
+        }
+        
+        .filter-tab {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            border: 2px solid transparent;
+            color: #aaa;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .filter-tab.active {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        .filter-tab:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .payload-details {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Live AI Detection Monitor</h1>
+            <div class="live-indicator">
+                <div class="pulse"></div>
+                <span style="font-weight: 600;">LIVE MONITORING ACTIVE</span>
+            </div>
+        </div>
+        
+        <div class="nav-bar">
+            <a href="/login" class="nav-btn">🔐 Login Test</a>
+            <a href="/security-lab" class="nav-btn">🔬 Security Lab</a>
+            <a href="/live-monitor" class="nav-btn">📡 Live Monitor</a>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card total">
+                <div class="stat-label">Total Analyzed</div>
+                <div class="stat-value" id="total-count">0</div>
+                <div class="stat-percentage">Last 24 hours</div>
+            </div>
+            
+            <div class="stat-card drop">
+                <div class="stat-label">🚨 DROP (Blocked)</div>
+                <div class="stat-value" id="drop-count">0</div>
+                <div class="stat-percentage" id="drop-percent">0%</div>
+                <div class="accuracy-bar">
+                    <div class="accuracy-fill drop" id="drop-bar" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="stat-card unknown">
+                <div class="stat-label">⚠️ UNKNOWN (Review)</div>
+                <div class="stat-value" id="unknown-count">0</div>
+                <div class="stat-percentage" id="unknown-percent">0%</div>
+                <div class="accuracy-bar">
+                    <div class="accuracy-fill unknown" id="unknown-bar" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="stat-card pass">
+                <div class="stat-label">✅ PASS (Clean)</div>
+                <div class="stat-value" id="pass-count">0</div>
+                <div class="stat-percentage" id="pass-percent">0%</div>
+                <div class="accuracy-bar">
+                    <div class="accuracy-fill pass" id="pass-bar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="payload-stream">
+            <div class="stream-header">
+                <h2>📊 Real-time Payload Stream</h2>
+                <button class="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
+            </div>
+            
+            <div class="filter-tabs">
+                <button class="filter-tab active" onclick="filterVerdicts('all')">📋 All Events</button>
+                <button class="filter-tab" onclick="filterVerdicts('drop')">🚨 DROP Only</button>
+                <button class="filter-tab" onclick="filterVerdicts('unknown')">⚠️ UNKNOWN Only</button>
+                <button class="filter-tab" onclick="filterVerdicts('pass')">✅ PASS Only</button>
+            </div>
+            
+            <div id="payload-list"></div>
+        </div>
+    </div>
+    
+    <script>
+        let allPayloads = [];
+        let currentFilter = 'all';
+        
+        async function refreshData() {
+            try {
+                // Fetch payloads
+                const payloadRes = await fetch('/api/realtime/payloads?limit=50');
+                const payloadData = await payloadRes.json();
+                allPayloads = payloadData.payloads || [];
+                
+                console.log('📡 Fetched payloads:', allPayloads.length);
+                if (allPayloads.length > 0) {
+                    console.log('Latest payload:', allPayloads[0]);
+                }
+                
+                // Calculate statistics
+                const total = allPayloads.length;
+                const dropCount = allPayloads.filter(p => p.verdict === 'DROP').length;
+                const unknownCount = allPayloads.filter(p => p.verdict === 'UNKNOWN').length;
+                const passCount = allPayloads.filter(p => p.verdict === 'PASS').length;
+                
+                // Update counts
+                document.getElementById('total-count').textContent = total;
+                document.getElementById('drop-count').textContent = dropCount;
+                document.getElementById('unknown-count').textContent = unknownCount;
+                document.getElementById('pass-count').textContent = passCount;
+                
+                // Calculate percentages
+                const dropPercent = total > 0 ? ((dropCount / total) * 100).toFixed(1) : 0;
+                const unknownPercent = total > 0 ? ((unknownCount / total) * 100).toFixed(1) : 0;
+                const passPercent = total > 0 ? ((passCount / total) * 100).toFixed(1) : 0;
+                
+                document.getElementById('drop-percent').textContent = dropPercent + '%';
+                document.getElementById('unknown-percent').textContent = unknownPercent + '%';
+                document.getElementById('pass-percent').textContent = passPercent + '%';
+                
+                // Update progress bars
+                document.getElementById('drop-bar').style.width = dropPercent + '%';
+                document.getElementById('unknown-bar').style.width = unknownPercent + '%';
+                document.getElementById('pass-bar').style.width = passPercent + '%';
+                
+                // Render payloads
+                renderPayloads();
+                
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+        
+        function filterVerdicts(filter) {
+            currentFilter = filter;
+            
+            // Update active tab
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Re-render
+            renderPayloads();
+        }
+        
+        function renderPayloads() {
+            const container = document.getElementById('payload-list');
+            
+            // Filter payloads
+            let filtered = allPayloads;
+            if (currentFilter !== 'all') {
+                filtered = allPayloads.filter(p => p.verdict.toLowerCase() === currentFilter);
+            }
+            
+            // Sort by timestamp (newest first)
+            filtered.sort((a, b) => new Date(b.captured_at || b.timestamp || 0) - new Date(a.captured_at || a.timestamp || 0));
+            
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p style="font-size: 1.2em; font-weight: 600; margin-bottom: 8px;">No events found</p>
+                        <p style="color: #666;">Try testing payloads in the login form to see detections here.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = filtered.map((payload, index) => {
+                const verdict = payload.verdict.toLowerCase();
+                const timestamp = new Date(payload.captured_at || payload.timestamp || Date.now()).toLocaleString();
+                
+                return `
+                    <div class="payload-item ${verdict}">
+                        <div class="payload-header">
+                            <span class="verdict-badge ${verdict}">${payload.verdict}</span>
+                            <span class="confidence-display">${payload.confidence.toFixed(1)}%</span>
+                        </div>
+                        
+                        <div class="payload-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Attack Type</span>
+                                <span class="detail-value">${payload.attack_type}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Source IP</span>
+                                <span class="detail-value">${payload.source_ip || 'Unknown'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Timestamp</span>
+                                <span class="detail-value">${timestamp}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Verdict ID</span>
+                                <span class="detail-value">#${payload.verdict_id || index + 1}</span>
+                            </div>
+                        </div>
+                        
+                        ${payload.payload ? `
+                            <div class="detail-label" style="margin-bottom: 8px;">Payload Preview:</div>
+                            <div class="payload-text">${escapeHtml(payload.payload)}</div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Auto-refresh every 3 seconds
+        setInterval(refreshData, 3000);
+        
+        // Initial load
+        refreshData();
+    </script>
+</body>
+</html>
+

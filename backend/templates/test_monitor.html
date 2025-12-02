@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Monitor Test</title>
+    <style>
+        body { 
+            font-family: Arial; 
+            background: #0f172a; 
+            color: white; 
+            padding: 20px; 
+        }
+        .payload { 
+            background: #1e293b; 
+            padding: 20px; 
+            margin: 10px 0; 
+            border-radius: 8px; 
+            border-left: 4px solid; 
+        }
+        .payload.drop { border-left-color: #e74c3c; }
+        .payload.pass { border-left-color: #27ae60; }
+        .payload.unknown { border-left-color: #f39c12; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Live Monitor Test Page</h1>
+    <div id="status" style="font-size: 24px; margin: 20px 0;"></div>
+    <div id="payloads"></div>
+    
+    <script>
+        console.log('🚀 Test page loaded');
+        
+        async function loadPayloads() {
+            const statusEl = document.getElementById('status');
+            const payloadsEl = document.getElementById('payloads');
+            
+            try {
+                console.log('📡 Fetching payloads...');
+                const res = await fetch('/api/realtime/payloads?limit=10');
+                const data = await res.json();
+                
+                console.log('✅ Received data:', data);
+                
+                statusEl.innerHTML = `
+                    <strong>✅ WORKING!</strong><br>
+                    Loaded ${data.count} payloads<br>
+                    Last updated: ${new Date().toLocaleTimeString()}
+                `;
+                
+                if (data.count === 0) {
+                    payloadsEl.innerHTML = '<p style="color: yellow;">⚠️ No payloads yet. Try submitting a login!</p>';
+                    return;
+                }
+                
+                const html = data.payloads.map((p, i) => `
+                    <div class="payload ${p.verdict.toLowerCase()}">
+                        <strong style="font-size: 20px;">${i + 1}. ${p.verdict}</strong> 
+                        - ${p.confidence.toFixed(1)}% 
+                        - ${p.attack_type}<br>
+                        <div style="margin: 10px 0; font-family: monospace; background: rgba(0,0,0,0.3); padding: 10px;">
+                            ${p.payload}
+                        </div>
+                        <small>
+                            ID: #${p.verdict_id} | 
+                            IP: ${p.source_ip} | 
+                            ${new Date(p.captured_at).toLocaleString()}
+                        </small>
+                    </div>
+                `).join('');
+                
+                payloadsEl.innerHTML = html;
+                
+            } catch (error) {
+                console.error('❌ Error:', error);
+                statusEl.innerHTML = `
+                    <strong style="color: red;">❌ ERROR!</strong><br>
+                    ${error.message}
+                `;
+                payloadsEl.innerHTML = `<pre style="color: red;">${error.stack}</pre>`;
+            }
+        }
+        
+        // Load immediately
+        loadPayloads();
+        
+        // Auto-refresh every 3 seconds
+        setInterval(() => {
+            console.log('🔄 Auto-refreshing...');
+            loadPayloads();
+        }, 3000);
+    </script>
+</body>
+</html>
+

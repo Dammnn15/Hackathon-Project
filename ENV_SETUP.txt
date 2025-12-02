@@ -1,0 +1,44 @@
+===================================
+ENVIRONMENT SETUP FOR NEW DEVELOPERS
+===================================
+
+When you clone this repo, you need to set up Firebase credentials:
+
+OPTION 1: Use .env file
+-----------------------
+Create backend/.env with your Firebase credentials:
+
+FIREBASE_TYPE=service_account
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_PRIVATE_KEY_ID=your-key-id
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=your-email@project.iam.gserviceaccount.com
+FIREBASE_CLIENT_ID=your-client-id
+FIREBASE_AUTH_URI=https://accounts.google.com/o/oauth2/auth
+FIREBASE_TOKEN_URI=https://oauth2.googleapis.com/token
+FIREBASE_AUTH_PROVIDER_CERT_URL=https://www.googleapis.com/oauth2/v1/certs
+FIREBASE_CLIENT_CERT_URL=https://www.googleapis.com/robot/v1/metadata/x509/...
+FIREBASE_UNIVERSE_DOMAIN=googleapis.com
+
+
+OPTION 2: Use serviceAccountKey.json
+------------------------------------
+1. Download from Firebase Console > Project Settings > Service Accounts
+2. Save as backend/serviceAccountKey.json
+3. This file is git-ignored (won't be committed)
+
+
+INSTALLATION:
+-------------
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cd backend
+python app.py
+
+
+SECURITY NOTE:
+--------------
+NEVER commit .env or serviceAccountKey.json files!
+These are automatically ignored by .gitignore.
+

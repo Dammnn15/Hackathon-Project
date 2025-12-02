@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Live Traffic Monitor</title>
+    <style>
+        body {
+            background: #0a0a0a;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        h1 { color: #ff0; text-shadow: 0 0 10px #ff0; }
+        .controls {
+            background: #111;
+            padding: 15px;
+            margin: 15px 0;
+            border: 2px solid #0f0;
+        }
+        button {
+            background: #222;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 8px 16px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: #0f0; color: black; }
+        button.active { background: #0f0; color: black; font-weight: bold; }
+        .payload {
+            border: 2px solid #0f0;
+            padding: 12px;
+            margin: 8px 0;
+            background: #111;
+        }
+        .drop { border-color: #f00; color: #f00; }
+        .pass { border-color: #0f0; color: #0f0; }
+        .unknown { border-color: #fa0; color: #fa0; }
+        .traffic { border-color: #08f; color: #08f; }
+        .label { color: #888; }
+        .value { color: #fff; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>⚡ LIVE TRAFFIC &amp; ATTACK MONITOR ⚡</h1>
+    <div id="status">Loading...</div>
+    
+    <div class="controls">
+        <strong>FILTER:</strong>
+        <button onclick="setFilter('all')" class="active" id="btn-all">ALL</button>
+        <button onclick="setFilter('DROP')" id="btn-drop">🚨 ATTACKS</button>
+        <button onclick="setFilter('UNKNOWN')" id="btn-unknown">⚠️ UNKNOWN</button>
+        <button onclick="setFilter('PASS')" id="btn-pass">✅ CLEAN</button>
+        <button onclick="setFilter('TRAFFIC')" id="btn-traffic">📡 TRAFFIC</button>
+    </div>
+    
+    <hr>
+    <div id="list"></div>
+    
+    <script>
+        let currentFilter = 'all';
+        let allData = [];
+        
+        function setFilter(filter) {
+            currentFilter = filter;
+            
+            // Update button styles
+            document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-' + filter.toLowerCase()).classList.add('active');
+            
+            // Re-render with filter
+            render();
+        }
+        
+        function load() {
+            fetch('/api/realtime/payloads?limit=50')
+                .then(r => r.json())
+                .then(data => {
+                    allData = data.payloads || [];
+                    render();
+                })
+                .catch(e => {
+                    document.getElementById('status').innerHTML = 
+                        '<h2 style="color:red">ERROR: ' + e.message + '</h2>';
+                });
+        }
+        
+        function render() {
+            // Filter data
+            let filtered = allData;
+            if (currentFilter !== 'all') {
+                filtered = allData.filter(p => p.verdict === currentFilter);
+            }
+            
+            // Count by type
+            const drop = allData.filter(p => p.verdict === 'DROP').length;
+            const pass = allData.filter(p => p.verdict === 'PASS').length;
+            const traffic = allData.filter(p => p.verdict === 'TRAFFIC').length;
+            const unknown = allData.filter(p => p.verdict === 'UNKNOWN').length;
+            
+            // Update status
+            document.getElementById('status').innerHTML = `
+                <h2>
+                    TOTAL: ${allData.length} | 
+                    🚨 ATTACKS: ${drop} | 
+                    ✅ CLEAN: ${pass} | 
+                    📡 TRAFFIC: ${traffic} | 
+                    ⚠️ UNKNOWN: ${unknown}<br>
+                    SHOWING: ${filtered.length} | 
+                    LAST UPDATE: ${new Date().toLocaleTimeString()}
+                </h2>
+            `;
+            
+            // Render list
+            if (filtered.length === 0) {
+                document.getElementById('list').innerHTML = 
+                    '<p style="color:#fa0">NO DATA IN THIS FILTER</p>';
+                return;
+            }
+            
+            let html = '';
+            filtered.forEach((p, i) => {
+                const emoji = p.verdict === 'DROP' ? '🚨' : 
+                             p.verdict === 'UNKNOWN' ? '⚠️' : 
+                             p.verdict === 'TRAFFIC' ? '📡' : '✅';
+                
+                html += `
+                    <div class="payload ${p.verdict.toLowerCase()}">
+                        <strong>${emoji} ${i + 1}. VERDICT: ${p.verdict}</strong> | 
+                        <span class="label">CONFIDENCE:</span> <span class="value">${p.confidence.toFixed(1)}%</span> | 
+                        <span class="label">TYPE:</span> <span class="value">${p.attack_type}</span><br>
+                        <span class="label">PAYLOAD:</span> <span class="value">${escapeHtml(p.payload)}</span><br>
+                        <span class="label">ID:</span> #${p.verdict_id} | 
+                        <span class="label">IP:</span> ${p.source_ip} | 
+                        <span class="label">TIME:</span> ${new Date(p.captured_at).toLocaleString()}
+                    </div>
+                `;
+            });
+            
+            document.getElementById('list').innerHTML = html;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Initial load
+        load();
+        
+        // Auto-refresh every 2 seconds
+        setInterval(load, 2000);
+    </script>
+</body>
+</html>
+
